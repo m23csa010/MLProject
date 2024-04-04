@@ -39,12 +39,12 @@ class MLP(nn.Module):
         return x
 
 class CNN(nn.Module):
-    def __init__(self):
+    def __init__(self,config):
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
-        self.fc1 = nn.Linear(32*7*7, 128)
-        self.fc2 = nn.Linear(128, 10)
+        self.conv1 = nn.Conv2d(1, config["hidden_conv1_size"], kernel_size=config["kernel_size"], stride=1, padding=(config["hidden_conv_size"]-1)//2)
+        self.conv2 = nn.Conv2d(config["hidden_conv1_size"], config["hidden_conv2_size"], kernel_size=config["kernel_size"], stride=1, padding=(config["hidden_conv_size"]-1)//2)
+        self.fc1 = nn.Linear(config["hidden_conv2_size"]*7*7, config["hidden_fc_size"])
+        self.fc2 = nn.Linear(config["hidden_fc_size"], 10)
 
     def forward(self, x):
         x = torch.relu(self.conv1(x))
@@ -102,36 +102,45 @@ def evaluate_model(model, test_loader, writer, tag):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-mlp_model = MLP().to(device)
-cnn_model = CNN().to(device)
+configs = [{
+            "hidden_conv1_size": 16,
+            "hidden_conv2_size": 32,
+            "hidden_fc_size": 128,
+            "kernel_size": 3
+            },
+            {
+            "hidden_conv1_size": 32,
+            "hidden_conv2_size": 64,
+            "hidden_fc_size": 256,
+            "kernel_size": 3
+            },
+            {
+            "hidden_conv1_size": 16,
+            "hidden_conv2_size": 32,
+            "hidden_fc_size": 64,
+            "kernel_size": 5
+            }]
 
-criterion = nn.CrossEntropyLoss()
-mlp_optimizer = optim.Adam(mlp_model.parameters(), lr=0.001)
-cnn_optimizer = optim.Adam(cnn_model.parameters(), lr=0.001)
+for config in configs:
+    cnn_model = CNN(config).to(device)
 
-train_model(mlp_model, criterion, mlp_optimizer, train_loader)
-train_model(cnn_model, criterion, cnn_optimizer, train_loader)
+    criterion = nn.CrossEntropyLoss()
+    cnn_optimizer = optim.Adam(cnn_model.parameters(), lr=0.001)
 
-writer = SummaryWriter()
-mlp_accuracy, mlp_precision, mlp_recall, mlp_cm = evaluate_model(mlp_model, test_loader, writer, 'MLP')
-cnn_accuracy, cnn_precision, cnn_recall, cnn_cm = evaluate_model(cnn_model, test_loader, writer, 'CNN')
-writer.close()
+    train_model(cnn_model, criterion, cnn_optimizer, train_loader)
 
-print("MLP Model Evaluation:")
-print("Accuracy:", mlp_accuracy)
-print("Precision:", mlp_precision)
-print("Recall:", mlp_recall)
-print("Confusion Matrix:")
-print(mlp_cm)
+    writer = SummaryWriter()
+    cnn_accuracy, cnn_precision, cnn_recall, cnn_cm = evaluate_model(cnn_model, test_loader, writer, 'CNN')
+    writer.close()
 
-print("\nCNN Model Evaluation:")
-print("Accuracy:", cnn_accuracy)
-print("Precision:", cnn_precision)
-print("Recall:", cnn_recall)
-print("Confusion Matrix:")
-print(cnn_cm)
+    print("\nCNN Model Evaluation:")
+    print("Accuracy:", cnn_accuracy)
+    print("Precision:", cnn_precision)
+    print("Recall:", cnn_recall)
+    print("Confusion Matrix:")
+    print(cnn_cm)
 
 # Commented out IPython magic to ensure Python compatibility.
-import tensorboard
+# import tensorboard
 # %load_ext tensorboard
 # %tensorboard --logdir runs
